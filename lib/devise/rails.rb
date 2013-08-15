@@ -29,24 +29,21 @@ module Devise
       end
     end
 
-    initializer "devise.secret_key" do
-      Devise.token_generator ||=
-        if secret_key = Devise.secret_key
-          Devise::TokenGenerator.new(
-            Devise::CachingKeyGenerator.new(Devise::KeyGenerator.new(secret_key))
-          )
-        else
-          raise <<-ERROR
-Devise.secret_key was not set. Please add the following to your Devise initializer:
-
-  config.secret_key = '#{SecureRandom.hex(64)}'
-
-ERROR
+    initializer "devise.mongoid_version_warning" do
+      if defined?(Mongoid)
+        require 'mongoid/version'
+        if Mongoid::VERSION.to_f < 2.1
+          puts "\n[DEVISE] Please note that Mongoid versions prior to 2.1 handle dirty model " \
+            "object attributes in such a way that the Devise `validatable` module will not apply " \
+            "its usual uniqueness and format validations for the email field. It is recommended " \
+            "that you upgrade to Mongoid 2.1+ for this and other fixes, but if for some reason you " \
+            "are unable to do so, you should add these validations manually.\n"
         end
+      end
     end
 
     initializer "devise.fix_routes_proxy_missing_respond_to_bug" do
-      # Deprecate: Remove once we move to Rails 4 only.
+      # We can get rid of this once we support only Rails > 3.2
       ActionDispatch::Routing::RoutesProxy.class_eval do
         def respond_to?(method, include_private = false)
           super || routes.url_helpers.respond_to?(method)

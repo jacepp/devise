@@ -4,15 +4,16 @@ class PasswordsControllerTest < ActionController::TestCase
   tests Devise::PasswordsController
   include Devise::TestHelpers
 
-  setup do
+  def setup
     request.env["devise.mapping"] = Devise.mappings[:user]
+
     @user = create_user
-    @raw  = @user.send_reset_password_instructions
+    @user.send_reset_password_instructions
   end
 
   def put_update_with_params
     put :update, "user" => {
-      "reset_password_token" => @raw, "password" => "123456", "password_confirmation" => "123456"
+      "reset_password_token" => @user.reset_password_token, "password" => "123456", "password_confirmation" => "123456"
     }
   end
 

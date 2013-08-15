@@ -13,7 +13,6 @@ class LockTest < ActionDispatch::IntegrationTest
     visit new_user_session_path
     click_link "Didn't receive unlock instructions?"
 
-    Devise.stubs(:friendly_token).returns("abcdef")
     fill_in 'email', :with => user.email
     click_button 'Resend unlock instructions'
   end
@@ -23,11 +22,8 @@ class LockTest < ActionDispatch::IntegrationTest
 
     assert_template 'sessions/new'
     assert_contain 'You will receive an email with instructions about how to unlock your account in a few minutes'
-
-    mail = ActionMailer::Base.deliveries.last
     assert_equal 1, ActionMailer::Base.deliveries.size
-    assert_equal ['please-change-me@config-initializers-devise.com'], mail.from
-    assert_match user_unlock_path(unlock_token: 'abcdef'), mail.body.encoded
+    assert_equal ['please-change-me@config-initializers-devise.com'], ActionMailer::Base.deliveries.first.from
   end
 
   test 'user should receive the instructions from a custom mailer' do
@@ -79,13 +75,21 @@ class LockTest < ActionDispatch::IntegrationTest
   end
 
   test "locked user should be able to unlock account" do
-    user = create_user
-    raw  = user.lock_access!
-    visit_user_unlock_with_token(raw)
+    user = create_user(:locked => true)
+    assert user.access_locked?
+
+    visit_user_unlock_with_token(user.unlock_token)
 
     assert_current_url "/users/sign_in"
     assert_contain 'Your account has been unlocked successfully. Please sign in to continue.'
+
     assert_not user.reload.access_locked?
+  end
+
+  test "redirect user to sign in page after unlocking its account" do
+    user = create_user(:locked => true)
+    visit_user_unlock_with_token(user.unlock_token)
+    assert_not warden.authenticated?(:user)
   end
 
   test "user should not send a new e-mail if already locked" do
@@ -149,10 +153,9 @@ class LockTest < ActionDispatch::IntegrationTest
   end
 
   test 'user with valid unlock token should be able to unlock account via XML request' do
-    user = create_user()
-    raw  = user.lock_access!
+    user = create_user(:locked => true)
     assert user.access_locked?
-    get user_unlock_path(:format => 'xml', :unlock_token => raw)
+    get user_unlock_path(:format => 'xml', :unlock_token => user.unlock_token)
     assert_response :success
     assert response.body.include? %(<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<user>)
   end

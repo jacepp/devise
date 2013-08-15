@@ -56,8 +56,14 @@ module Devise
       klass.devise_modules.each do |mod|
         constant = const_get(mod.to_s.classify)
 
-        constant.required_fields(klass).each do |field|
-          failed_attributes << field unless instance.respond_to?(field)
+        if constant.respond_to?(:required_fields)
+          constant.required_fields(klass).each do |field|
+            failed_attributes << field unless instance.respond_to?(field)
+          end
+        else
+          ActiveSupport::Deprecation.warn "The module #{mod} doesn't implement self.required_fields(klass). " \
+            "Devise uses required_fields to warn developers of any missing fields in their models. " \
+            "Please implement #{mod}.required_fields(klass) that returns an array of symbols with the required fields."
         end
       end
 
@@ -83,13 +89,11 @@ module Devise
 
       devise_modules_hook! do
         include Devise::Models::Authenticatable
-
-        if selected_modules.include?(:token_authenticatable)
-          ActiveSupport::Deprecation.warn "devise :token_authenticatable is deprecated. " \
-            "Please check Devise 3.1 release notes for more information on how to upgrade."
-        end
-
         selected_modules.each do |m|
+          if m == :encryptable && !(defined?(Devise::Models::Encryptable))
+            warn "[DEVISE] You're trying to include :encryptable in your model but it is not bundled with the Devise gem anymore. Please add `devise-encryptable` to your Gemfile to proceed.\n"
+          end
+
           mod = Devise::Models.const_get(m.to_s.classify)
 
           if mod.const_defined?("ClassMethods")

@@ -15,9 +15,10 @@ Devise is a flexible authentication solution for Rails based on Warden. It:
 * Allows you to have multiple models signed in at the same time;
 * Is based on a modularity concept: use just what you really need.
 
-It's composed of 10 modules:
+It's composed of 11 modules:
 
 * [Database Authenticatable](http://rubydoc.info/github/plataformatec/devise/master/Devise/Models/DatabaseAuthenticatable): encrypts and stores a password in the database to validate the authenticity of a user while signing in. The authentication can be done both through POST requests or HTTP Basic Authentication.
+* [Token Authenticatable](http://rubydoc.info/github/plataformatec/devise/master/Devise/Models/TokenAuthenticatable): signs in a user based on an authentication token (also known as "single access token"). The token can be given both through query string or HTTP Basic Authentication.
 * [Omniauthable](http://rubydoc.info/github/plataformatec/devise/master/Devise/Models/Omniauthable): adds Omniauth (https://github.com/intridea/omniauth) support;
 * [Confirmable](http://rubydoc.info/github/plataformatec/devise/master/Devise/Models/Confirmable): sends emails with confirmation instructions and verifies whether an account is already confirmed during sign in.
 * [Recoverable](http://rubydoc.info/github/plataformatec/devise/master/Devise/Models/Recoverable): resets the user password and sends reset instructions.
@@ -187,7 +188,7 @@ There are just three actions in Devise that allows any set of parameters to be p
 * `sign_up` (`Devise::RegistrationsController#create`) - Permits authentication keys plus `password` and `password_confirmation`
 * `account_update` (`Devise::RegistrationsController#update`) - Permits authentication keys plus `password`, `password_confirmation` and `current_password`
 
-In case you want to permit additional parameters (the lazy way™) you can do with a simple before filter in your `ApplicationController`:
+In case you want to customize the permitted parameters (the lazy way™) you can do with a simple before filter in your `ApplicationController`:
 
 ```ruby
 class ApplicationController < ActionController::Base
@@ -196,16 +197,8 @@ class ApplicationController < ActionController::Base
   protected
 
   def configure_permitted_parameters
-    devise_parameter_sanitizer.for(:sign_up) << :username
+    devise_parameter_sanitizer.for(:sign_in) { |u| u.permit(:username, :email) }
   end
-end
-```
-
-To completely change Devise defaults or invoke custom behaviour, you can also pass a block:
-
-```ruby
-def configure_permitted_parameters
-  devise_parameter_sanitizer.for(:sign_in) { |u| u.permit(:username, :email) }
 end
 ```
 
@@ -259,7 +252,7 @@ rails generate devise:views users
 
 If the customization at the views level is not enough, you can customize each controller by following these steps:
 
-1. Create your custom controller, for example a `Admins::SessionsController`:
+1. Create your custom controller, for example a `Admins::SessionsController`:  
 
     ```ruby
     class Admins::SessionsController < Devise::SessionsController
@@ -447,6 +440,12 @@ https://github.com/hassox/warden
 We have a long list of valued contributors. Check them all at:
 
 https://github.com/plataformatec/devise/contributors
+
+### Maintainers
+
+* José Valim (https://github.com/josevalim)
+* Carlos Antônio da Silva (https://github.com/carlosantoniodasilva)
+* Rodrigo Flores (https://github.com/rodrigoflores)
 
 ## License
 

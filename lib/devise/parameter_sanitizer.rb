@@ -13,25 +13,14 @@ module Devise
       if block_given?
         @blocks[kind] = block
       else
-        default_for(kind)
-      end
-    end
-
-    def sanitize(kind)
-      if block = @blocks[kind]
-        block.call(default_params)
-      else
-        default_sanitize(kind)
+        block = @blocks[kind]
+        block ? block.call(default_params) : fallback_for(kind)
       end
     end
 
     private
 
-    def default_for(kind)
-      raise ArgumentError, "a block is expected in Devise base sanitizer"
-    end
-
-    def default_sanitize(kind)
+    def fallback_for(kind)
       default_params
     end
 
@@ -41,53 +30,34 @@ module Devise
   end
 
   class ParameterSanitizer < BaseSanitizer
-    def initialize(*)
-      super
-      @permitted = Hash.new { |h,k| h[k] = attributes_for(k) }
-    end
-
-    def sign_in
-      default_params.permit self.for(:sign_in)
-    end
-
-    def sign_up
-      default_params.permit self.for(:sign_up)
-    end
-
-    def account_update
-      default_params.permit self.for(:account_update)
-    end
-
     private
 
-    # Change for(kind) to return the values in the @permitted
-    # hash, allowing the developer to customize at runtime.
-    def default_for(kind)
-      @permitted[kind] || raise("No sanitizer provided for #{kind}")
-    end
-
-    def default_sanitize(kind)
+    def fallback_for(kind)
       if respond_to?(kind, true)
         send(kind)
       else
-        raise NotImplementedError, "Devise doesn't know how to sanitize parameters for #{kind}"
+        raise NotImplementedError, "Devise Parameter Sanitizer doesn't know how to sanitize parameters for #{kind}"
       end
     end
 
-    def attributes_for(kind)
-      case kind
-      when :sign_in
-        auth_keys + [:password, :remember_me]
-      when :sign_up
-        auth_keys + [:password, :password_confirmation]
-      when :account_update
-        auth_keys + [:password, :password_confirmation, :current_password]
-      end
+    # These are the params used to sign in a user so we don't need to
+    # mass-assign the password param in order to authenticate. Excluding it
+    # here allows us to construct a new user without sensitive information if
+    # authentication fails.
+    def sign_in
+      default_params.permit(*auth_keys + [:password, :remember_me])
+    end
+
+    def sign_up
+      default_params.permit(*(auth_keys + [:password, :password_confirmation]))
+    end
+
+    def account_update
+      default_params.permit(*(auth_keys + [:password, :password_confirmation, :current_password]))
     end
 
     def auth_keys
-      @auth_keys ||= @resource_class.authentication_keys.respond_to?(:keys) ?
-                       @resource_class.authentication_keys.keys : @resource_class.authentication_keys
+      resource_class.authentication_keys.respond_to?(:keys) ? resource_class.authentication_keys.keys : resource_class.authentication_keys
     end
   end
 end

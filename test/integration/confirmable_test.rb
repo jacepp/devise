@@ -28,7 +28,9 @@ class ConfirmationTest < ActionDispatch::IntegrationTest
 
   test 'user should receive a confirmation from a custom mailer' do
     User.any_instance.stubs(:devise_mailer).returns(Users::Mailer)
+
     resend_confirmation
+
     assert_equal ['custom@example.com'], ActionMailer::Base.deliveries.first.from
   end
 
@@ -38,11 +40,21 @@ class ConfirmationTest < ActionDispatch::IntegrationTest
     assert_contain /Confirmation token(.*)invalid/
   end
 
+  test 'user with valid confirmation token should be able to confirm an account' do
+    user = create_user(:confirm => false)
+    assert_not user.confirmed?
+    visit_user_confirmation_with_token(user.confirmation_token)
+
+    assert_contain 'Your account was successfully confirmed.'
+    assert_current_url '/'
+    assert user.reload.confirmed?
+  end
+
   test 'user with valid confirmation token should not be able to confirm an account after the token has expired' do
     swap Devise, :confirm_within => 3.days do
       user = create_user(:confirm => false, :confirmation_sent_at => 4.days.ago)
       assert_not user.confirmed?
-      visit_user_confirmation_with_token(user.raw_confirmation_token)
+      visit_user_confirmation_with_token(user.confirmation_token)
 
       assert_have_selector '#error_explanation'
       assert_contain /needs to be confirmed within 3 days/
@@ -54,10 +66,10 @@ class ConfirmationTest < ActionDispatch::IntegrationTest
     swap Devise, :confirm_within => 3.days do
       user = create_user(:confirm => false, :confirmation_sent_at => 2.days.ago)
       assert_not user.confirmed?
-      visit_user_confirmation_with_token(user.raw_confirmation_token)
+      visit_user_confirmation_with_token(user.confirmation_token)
 
       assert_contain 'Your account was successfully confirmed.'
-      assert_current_url '/users/sign_in'
+      assert_current_url '/'
       assert user.reload.confirmed?
     end
   end
@@ -66,7 +78,7 @@ class ConfirmationTest < ActionDispatch::IntegrationTest
     Devise::ConfirmationsController.any_instance.stubs(:after_confirmation_path_for).returns("/?custom=1")
 
     user = create_user(:confirm => false)
-    visit_user_confirmation_with_token(user.raw_confirmation_token)
+    visit_user_confirmation_with_token(user.confirmation_token)
 
     assert_current_url "/?custom=1"
   end
@@ -75,7 +87,7 @@ class ConfirmationTest < ActionDispatch::IntegrationTest
     user = create_user(:confirm => false)
     user.confirmed_at = Time.now
     user.save
-    visit_user_confirmation_with_token(user.raw_confirmation_token)
+    visit_user_confirmation_with_token(user.confirmation_token)
 
     assert_have_selector '#error_explanation'
     assert_contain 'already confirmed'
@@ -86,12 +98,27 @@ class ConfirmationTest < ActionDispatch::IntegrationTest
     user.confirmed_at = Time.now
     user.save
 
-    visit_user_confirmation_with_token(user.raw_confirmation_token)
+    visit_user_confirmation_with_token(user.confirmation_token)
     assert_contain 'already confirmed'
 
     fill_in 'email', :with => user.email
     click_button 'Resend confirmation instructions'
     assert_contain 'already confirmed'
+  end
+
+  test 'sign in user automatically after confirming its email' do
+    user = create_user(:confirm => false)
+    visit_user_confirmation_with_token(user.confirmation_token)
+
+    assert warden.authenticated?(:user)
+  end
+
+  test 'increases sign count when signed in through confirmation' do
+    user = create_user(:confirm => false)
+    visit_user_confirmation_with_token(user.confirmation_token)
+
+    user.reload
+    assert_equal 1, user.sign_in_count
   end
 
   test 'not confirmed user with setup to block without confirmation should not be able to sign in' do
@@ -148,7 +175,7 @@ class ConfirmationTest < ActionDispatch::IntegrationTest
 
   test 'confirm account with valid confirmation token in XML format should return valid response' do
     user = create_user(:confirm => false)
-    get user_confirmation_path(:confirmation_token => user.raw_confirmation_token, :format => 'xml')
+    get user_confirmation_path(:confirmation_token => user.confirmation_token, :format => 'xml')
     assert_response :success
     assert response.body.include? %(<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<user>)
   end
@@ -229,10 +256,10 @@ class ConfirmationOnChangeTest < ActionDispatch::IntegrationTest
     admin = create_admin
     admin.update_attributes(:email => 'new_test@example.com')
     assert_equal 'new_test@example.com', admin.unconfirmed_email
-    visit_admin_confirmation_with_token(admin.raw_confirmation_token)
+    visit_admin_confirmation_with_token(admin.confirmation_token)
 
     assert_contain 'Your account was successfully confirmed.'
-    assert_current_url '/admin_area/sign_in'
+    assert_current_url '/admin_area/home'
     assert admin.reload.confirmed?
     assert_not admin.reload.pending_reconfirmation?
   end
@@ -242,19 +269,17 @@ class ConfirmationOnChangeTest < ActionDispatch::IntegrationTest
     admin.update_attributes(:email => 'first_test@example.com')
     assert_equal 'first_test@example.com', admin.unconfirmed_email
 
-    raw_confirmation_token = admin.raw_confirmation_token
-    admin = Admin.find(admin.id)
-
+    confirmation_token = admin.confirmation_token
     admin.update_attributes(:email => 'second_test@example.com')
     assert_equal 'second_test@example.com', admin.unconfirmed_email
 
-    visit_admin_confirmation_with_token(raw_confirmation_token)
+    visit_admin_confirmation_with_token(confirmation_token)
     assert_have_selector '#error_explanation'
     assert_contain(/Confirmation token(.*)invalid/)
 
-    visit_admin_confirmation_with_token(admin.raw_confirmation_token)
+    visit_admin_confirmation_with_token(admin.confirmation_token)
     assert_contain 'Your account was successfully confirmed.'
-    assert_current_url '/admin_area/sign_in'
+    assert_current_url '/admin_area/home'
     assert admin.reload.confirmed?
     assert_not admin.reload.pending_reconfirmation?
   end
@@ -266,7 +291,7 @@ class ConfirmationOnChangeTest < ActionDispatch::IntegrationTest
 
     create_second_admin(:email => "new_admin_test@example.com")
 
-    visit_admin_confirmation_with_token(admin.raw_confirmation_token)
+    visit_admin_confirmation_with_token(admin.confirmation_token)
     assert_have_selector '#error_explanation'
     assert_contain(/Email.*already.*taken/)
     assert admin.reload.pending_reconfirmation?

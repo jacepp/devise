@@ -84,12 +84,8 @@ class ConfirmationInstructionsTest < ActionMailer::TestCase
 
   test 'body should have link to confirm the account' do
     host = ActionMailer::Base.default_url_options[:host]
-
-    if mail.body.encoded =~ %r{<a href=\"http://#{host}/users/confirmation\?confirmation_token=([^"]+)">}
-      assert_equal Devise.token_generator.digest(user.class, :confirmation_token, $1), user.confirmation_token
-    else
-      flunk "expected confirmation url regex to match"
-    end
+    confirmation_url_regexp = %r{<a href=\"http://#{host}/users/confirmation\?confirmation_token=#{user.confirmation_token}">}
+    assert_match confirmation_url_regexp, mail.body.encoded
   end
 
   test 'renders a scoped if scoped_views is set to true' do

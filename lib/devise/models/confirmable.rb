@@ -115,11 +115,11 @@ module Devise
           send_confirmation_instructions
         end
       end
-      
+
       # Generate a confirmation token unless already exists and save the record.
       def ensure_confirmation_token!
         generate_confirmation_token! if should_generate_confirmation_token?
-      end 
+      end
 
       # Overwrites active_for_authentication? for confirmation
       # by verifying whether a user is active to sign in or not. If the user
@@ -192,7 +192,7 @@ module Devise
         #   confirmation_period_valid?   # will always return true
         #
         def confirmation_period_valid?
-          self.class.allow_unconfirmed_access_for.nil? || (confirmation_sent_at && confirmation_sent_at.utc >= self.class.allow_unconfirmed_access_for.ago)
+          # self.class.allow_unconfirmed_access_for.nil? || (confirmation_sent_at && confirmation_sent_at.utc >= self.class.allow_unconfirmed_access_for.ago)
         end
 
         # Checks if the user confirmation happens before the token becomes invalid
